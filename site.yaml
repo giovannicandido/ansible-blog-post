@@ -1,0 +1,62 @@
+---
+- name: Update web servers
+  hosts: webservers
+  become: true
+  vars:
+    httpd_config_folder: /etc/apache2
+    vhost_domain: example.local
+    proxy_timeout: 60
+  tasks:
+  - name: Ensure apache is at the latest version
+    ansible.builtin.apt:
+      name: apache2
+      state: latest
+  - name: Creates the html directory for site
+    ansible.builtin.file:
+      dest: '/var/www/vhosts/{{ vhost_domain }}/public_html'
+      state: directory
+  - name: Create the site index.html
+    ansible.builtin.template:
+      src: ./templates/index.html.j2
+      dest: '/var/www/vhosts/{{ vhost_domain }}/public_html/index.html'
+  - name: Config virtual host for site
+    ansible.builtin.template:
+      src: ./templates/site-vhost.conf.j2
+      dest: '{{ httpd_config_folder }}/sites-available/{{ vhost_domain }}.conf'
+    notify:
+      - Restart apache
+  - name: Disables apache default vhost which conflicts with others
+    ansible.builtin.command: "a2dissite 000-default.conf"
+    args:
+      removes: '{{ httpd_config_folder }}/sites-enabled/000-default.conf'
+    notify:
+      - Restart apache
+  - name: Enable VHost for Domain {{ vhost_domain }}  in apache
+    ansible.builtin.command: "a2ensite {{ vhost_domain }}.conf"
+    args:
+      creates: '{{ httpd_config_folder }}/sites-enabled/{{ vhost_domain }}.conf'
+    notify:
+      - Restart apache
+  - name: Ensure Apache2 is Started
+    ansible.builtin.service:
+      name: apache2
+      state: started
+  handlers:
+    - name: Restart apache
+      ansible.builtin.service:
+        name: apache2
+        state: restarted
+
+- name: Update db servers
+  hosts: databases
+  become: true
+
+  tasks:
+  - name: Ensure postgresql is at the latest version
+    ansible.builtin.apt:
+      name: postgresql
+      state: latest
+  - name: Ensure that postgresql is started
+    ansible.builtin.service:
+      name: postgresql
+      state: started
