@@ -1,0 +1,2 @@
+vhost_domain: example.local
+proxy_timeout: 60
